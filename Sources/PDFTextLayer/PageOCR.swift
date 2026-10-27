@@ -47,7 +47,7 @@ enum PageOCR {
         var starts: [CGFloat] = [0]
         while starts.last! + tileLength < along { starts.append(min(starts.last! + step, along - tileLength)) }
 
-        var found: [(text: String, rect: CGRect)] = []
+        var found: [(text: String, rect: CGRect, direction: Direction)] = []
         for (index, start) in starts.enumerated() {
             let tile = vertical
                 ? CGRect(x: 0, y: start, width: pixelWidth, height: tileLength)
@@ -66,25 +66,63 @@ enum PageOCR {
                 )
                 let centre = vertical ? rect.midY : rect.midX
                 guard centre >= keepFrom, centre < keepTo else { continue }
-                found.append((line.text, rect))
+                let run = CGVector(
+                    dx: (line.bottomRight.x - line.bottomLeft.x) * tile.width,
+                    dy: (line.bottomRight.y - line.bottomLeft.y) * tile.height
+                )
+                found.append((line.text, rect, Direction(run)))
             }
         }
 
-        // Ordered as the page is shown, kept clear of the lines above and below, then placed in
-        // the page's own space
-        let rects = LineBoxes.separated(found.map(\.rect))
-        return ReadingOrder.order(found.map(\.rect), pageWidth: pixelWidth).map { index in
-            let text = found[index].text
-            let rect = rects[index]
-            let origin = CGPoint(x: rect.minX, y: rect.minY).applying(toPage)
-            let right = CGPoint(x: rect.maxX, y: rect.minY).applying(toPage)
-            let top = CGPoint(x: rect.minX, y: rect.maxY).applying(toPage)
+        // Kept clear of the neighbouring lines across their reading direction
+        var rects = found.map(\.rect)
+        let horizontal = found.indices.filter { !found[$0].direction.isVertical }
+        let down = found.indices.filter { found[$0].direction.isVertical }
+        for (index, rect) in zip(horizontal, LineBoxes.separated(horizontal.map { rects[$0] })) { rects[index] = rect }
+        let transposed = LineBoxes.separated(down.map { rects[$0].transposed }).map(\.transposed)
+        for (index, rect) in zip(down, transposed) { rects[index] = rect }
+
+        let order = TextRecognizer.linesAreInReadingOrder
+            ? Array(found.indices)
+            : ReadingOrder.order(found.map(\.rect), pageWidth: pixelWidth)
+        return order.map { index in
+            let (origin, end, top) = found[index].direction.corners(of: rects[index])
+            let o = origin.applying(toPage), e = end.applying(toPage), t = top.applying(toPage)
             return PlacedLine(
-                text: text,
-                origin: origin,
-                run: CGVector(dx: right.x - origin.x, dy: right.y - origin.y),
-                rise: CGVector(dx: top.x - origin.x, dy: top.y - origin.y)
+                text: found[index].text,
+                origin: o,
+                run: CGVector(dx: e.x - o.x, dy: e.y - o.y),
+                rise: CGVector(dx: t.x - o.x, dy: t.y - o.y)
             )
+        }
+    }
+
+    /// Which way a line reads on the rendered page
+    enum Direction {
+        case right, down, up, left
+
+        init(_ run: CGVector) {
+            if abs(run.dx) >= abs(run.dy) {
+                self = run.dx >= 0 ? .right : .left
+            } else {
+                self = run.dy <= 0 ? .down : .up
+            }
+        }
+
+        var isVertical: Bool { self == .down || self == .up }
+
+        /// Where the text starts, where it ends, and the top of its first glyph
+        func corners(of rect: CGRect) -> (CGPoint, CGPoint, CGPoint) {
+            switch self {
+            case .right:
+                return (CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.minX, y: rect.maxY))
+            case .left:
+                return (CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.maxX, y: rect.minY))
+            case .down:
+                return (CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY))
+            case .up:
+                return (CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.minY))
+            }
         }
     }
 
@@ -109,4 +147,8 @@ enum PageOCR {
         lock.unlock()
         return context.makeImage()
     }
+}
+
+private extension CGRect {
+    var transposed: CGRect { CGRect(x: minY, y: minX, width: height, height: width) }
 }

@@ -2,7 +2,7 @@ import CoreGraphics
 
 public enum LineBoxes {
     /// Shrinks line boxes about their centres until no two lines that share horizontal space
-    /// overlap vertically. Viewers such as PDFKit group characters into lines by their vertical
+    /// overlap or touch vertically. Viewers such as PDFKit group characters into lines by their vertical
     /// extent rather than by the order they were written in, so recognized boxes that reach into
     /// the next line (common on tightly set scans) make neighbouring lines merge and their
     /// characters interleave when selected or copied.
@@ -16,7 +16,8 @@ public enum LineBoxes {
                 let distance = abs(a.midY - b.midY)
                 // Pieces of the same row are not neighbours
                 guard distance > min(a.height, b.height) * 0.3 else { continue }
-                if distance < a.height / 2 + b.height / 2 {
+                // Lines that only touch are merged too, so they keep a gap
+                if distance < (a.height / 2 + b.height / 2) * 1.1 {
                     halfHeights[i] = min(halfHeights[i], distance * 0.45)
                 }
             }
