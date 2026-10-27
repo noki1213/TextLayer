@@ -39,6 +39,7 @@ struct Assessment {
     let plan: Plan
     /// Pages already read while assessing, to reuse
     var recognized: [Int: [PlacedLine]] = [:]
+    var match: CharacterMatch?
 }
 
 public final class Processor {
@@ -48,8 +49,6 @@ public final class Processor {
 
     /// A page with fewer letters than this counts as having no text
     static let minimumPageText = 10
-    /// Share of the characters read off a page that its own text has to contain to count as sound
-    static let minimumRecall = 0.6
 
     public init(options: ProcessOptions) {
         self.options = options
@@ -112,6 +111,9 @@ public final class Processor {
         var summary = "\(pagesWithText)/\(pages.count) pages, \(lineCount) lines"
         if case .replaceText(let recall) = assessment.plan {
             summary += ", own text replaced (matched \(Int(recall * 100))%)"
+        }
+        if options.dryRun, let match = assessment.match {
+            summary += " [\(match.description)]"
         }
         if options.dryRun { return .updated("would add: " + summary) }
 
@@ -177,21 +179,22 @@ public final class Processor {
         // Compare a few pages' own text with what is printed on them
         let samples = Array(Set([0.2, 0.5, 0.8].map { withText[Int(Double(withText.count - 1) * $0)] })).sorted()
         let read = try recognize(pages: samples, document: document, lock: lock)
-        var recalls: [Double] = []
+        var match = CharacterMatch()
         for index in samples {
             let printed = Self.letters(of: (read[index] ?? []).map(\.text).joined())
             guard printed.count >= 30 else { continue }
-            recalls.append(Self.recall(printed: printed, own: Self.letters(of: texts[index])))
+            match.add(printed: printed, own: Self.letters(of: texts[index]))
         }
         var assessment: Assessment
-        if !recalls.isEmpty, recalls.reduce(0, +) / Double(recalls.count) < Self.minimumRecall {
-            assessment = Assessment(plan: .replaceText(recall: recalls.reduce(0, +) / Double(recalls.count)))
+        if match.isBroken {
+            assessment = Assessment(plan: .replaceText(recall: match.recall(of: nil)))
         } else if empty.isEmpty {
             assessment = Assessment(plan: .nothing("has text"))
         } else {
             assessment = Assessment(plan: .fillEmptyPages(empty))
         }
         assessment.recognized = read
+        assessment.match = match
         return assessment
     }
 
@@ -205,14 +208,9 @@ public final class Processor {
 
     /// Share of the printed characters that the page's own text also has (as a multiset)
     static func recall(printed: [Character], own: [Character]) -> Double {
-        var available: [Character: Int] = [:]
-        for character in own { available[character, default: 0] += 1 }
-        var matched = 0
-        for character in printed where (available[character] ?? 0) > 0 {
-            available[character]! -= 1
-            matched += 1
-        }
-        return printed.isEmpty ? 1 : Double(matched) / Double(printed.count)
+        var match = CharacterMatch()
+        match.add(printed: printed, own: own)
+        return match.recall(of: nil)
     }
 
     // MARK: Reading pages
