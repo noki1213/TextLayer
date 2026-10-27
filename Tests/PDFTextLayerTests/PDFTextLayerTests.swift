@@ -36,4 +36,15 @@ final class ReadingOrderTests: XCTestCase {
         ]
         XCTAssertEqual(ReadingOrder.order(boxes, pageWidth: 100), [0, 1, 3, 2, 4, 5])
     }
+
+    func testOverlappingLinesAreSeparated() {
+        let boxes = [
+            CGRect(x: 0, y: 20, width: 100, height: 12),  // reaches down into the next line
+            CGRect(x: 0, y: 10, width: 100, height: 8),
+            CGRect(x: 0, y: 40, width: 100, height: 8),   // clear of the others
+        ]
+        let separated = LineBoxes.separated(boxes)
+        XCTAssertLessThanOrEqual(separated[1].maxY, separated[0].minY)
+        XCTAssertEqual(separated[2], boxes[2])
+    }
 }

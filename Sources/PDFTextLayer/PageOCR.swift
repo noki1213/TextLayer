@@ -69,9 +69,12 @@ enum PageOCR {
             }
         }
 
-        // Ordered as the page is shown, then placed in the page's own space
+        // Ordered as the page is shown, kept clear of the lines above and below, then placed in
+        // the page's own space
+        let rects = LineBoxes.separated(found.map(\.rect))
         return ReadingOrder.order(found.map(\.rect), pageWidth: pixelWidth).map { index in
-            let (text, rect) = found[index]
+            let text = found[index].text
+            let rect = rects[index]
             let origin = CGPoint(x: rect.minX, y: rect.minY).applying(toPage)
             let right = CGPoint(x: rect.maxX, y: rect.minY).applying(toPage)
             let top = CGPoint(x: rect.minX, y: rect.maxY).applying(toPage)
