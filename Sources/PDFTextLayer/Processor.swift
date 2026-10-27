@@ -31,7 +31,7 @@ public enum Outcome {
 struct Assessment {
     enum Plan {
         case nothing(String)
-        /// Read the pages that have no text
+        /// Read the pages with too little text of their own
         case fillEmptyPages([Int])
         /// The text the file has does not match what is printed: read every page and hide the old text
         case replaceText(recall: Double)

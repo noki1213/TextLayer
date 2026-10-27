@@ -1,8 +1,8 @@
 import CoreGraphics
 
-/// Puts recognized lines in reading order. Vision returns lines top to bottom across the whole
-/// page, which interleaves the columns of a two-column page; a viewer then selects from both
-/// columns while the pointer moves down one.
+/// Puts recognized lines in reading order, for recognizers that return lines top to bottom across
+/// the whole page. That order interleaves the columns of a two-column page, and a viewer then
+/// selects from both columns while the pointer moves down one.
 public enum ReadingOrder {
     /// Narrowest empty strip that separates columns, as a share of the page width
     static let columnGap: CGFloat = 0.01

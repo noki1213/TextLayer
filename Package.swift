@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TextLayer",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v13)],
     products: [
         .executable(name: "textlayer", targets: ["textlayer"]),
         // Vision text recognition and invisible-text drawing, for apps that build searchable PDFs
