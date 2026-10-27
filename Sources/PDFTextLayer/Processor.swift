@@ -75,12 +75,18 @@ public final class Processor {
         let modified = info.st_mtimespec
 
         let bytes = [UInt8](try Data(contentsOf: url))
-        let file = try PDFFile(bytes: bytes)
+        var file = try PDFFile(bytes: bytes)
         if file.isEncrypted { return .skipped("encrypted") }
         if file.resolve(file.trailer["Info"])?.dictionary?[TextLayerUpdate.markerKey] != nil {
             return .skipped("already has a text layer from this tool")
         }
-        let pages = try file.pages()
+        let pages: [PageEntry]
+        do {
+            pages = try file.pages()
+        } catch {
+            file = try PDFFile(bytes: bytes, rebuild: true)
+            pages = try file.pages()
+        }
         guard let rendered = CGPDFDocument(url as CFURL), let document = PDFDocument(url: url) else {
             return .failed("cannot open")
         }
@@ -90,7 +96,7 @@ public final class Processor {
 
         let texts = (0..<pages.count).map { document.page(at: $0)?.string ?? "" }
         let renderLock = NSLock()
-        var assessment = try assess(texts: texts, document: rendered, lock: renderLock)
+        var assessment = try assess(texts: texts, file: file, pages: pages, document: rendered, lock: renderLock)
 
         let targets: [Int]
         switch assessment.plan {
@@ -162,7 +168,7 @@ public final class Processor {
 
     // MARK: Assessing
 
-    private func assess(texts: [String], document: CGPDFDocument, lock: NSLock) throws -> Assessment {
+    private func assess(texts: [String], file: PDFFile, pages: [PageEntry], document: CGPDFDocument, lock: NSLock) throws -> Assessment {
         // Text made of control characters is a font without a Unicode mapping
         let joined = texts.joined()
         let controls = joined.unicodeScalars.filter { $0.value < 0x20 && $0 != "\n" && $0 != "\r" && $0 != "\t" }.count
@@ -179,6 +185,14 @@ public final class Processor {
 
         // Compare a few pages' own text with what is printed on them
         let samples = Array(Set([0.2, 0.5, 0.8].map { withText[Int(Double(withText.count - 1) * $0)] })).sorted()
+
+        // Text that is all invisible is another OCR's layer over a scan; reading it again does better
+        if samples.allSatisfy({ index in
+            guard let content = pageContent(file: file, page: pages[index]) else { return false }
+            return ContentStream.showsOnlyInvisibleText(content)
+        }) {
+            return Assessment(plan: .replaceText(recall: 0))
+        }
         let read = try recognize(pages: samples, document: document, lock: lock)
         var match = CharacterMatch()
         for index in samples {
@@ -197,6 +211,23 @@ public final class Processor {
         assessment.recognized = read
         assessment.match = match
         return assessment
+    }
+
+    /// The page's content streams, decoded and joined
+    private func pageContent(file: PDFFile, page: PageEntry) -> [UInt8]? {
+        var parts: [PDFObject] = []
+        switch page.dictionary["Contents"] {
+        case .reference(let number, _):
+            parts = file.object(number)?.array ?? [page.dictionary["Contents"]!]
+        case .array(let items): parts = items
+        default: return nil
+        }
+        var content: [UInt8] = []
+        for part in parts {
+            guard let stream = file.resolve(part), let data = try? file.decodedStream(stream) else { return nil }
+            content += data + [0x0A]
+        }
+        return content
     }
 
     static func letters(of text: String) -> [Character] {

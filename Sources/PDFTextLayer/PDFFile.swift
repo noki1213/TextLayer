@@ -22,12 +22,18 @@ public final class PDFFile {
     private var objectStreams: [Int: [Int: PDFObject]] = [:]
     private var loading: Set<Int> = []
 
-    public init(bytes: [UInt8]) throws {
+    /// rebuild: ignore the cross-reference data and find the objects by scanning the file, for a
+    /// file whose tables lead to the catalog but not to everything else
+    public init(bytes: [UInt8], rebuild: Bool = false) throws {
         self.bytes = bytes
-        do {
-            try readXref()
-        } catch {
+        if rebuild {
             try rebuildXref()
+        } else {
+            do {
+                try readXref()
+            } catch {
+                try rebuildXref()
+            }
         }
         guard trailer["Root"] != nil else { throw PDFParseError("no document catalog") }
     }

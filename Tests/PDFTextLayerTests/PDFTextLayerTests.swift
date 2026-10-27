@@ -48,3 +48,18 @@ final class ReadingOrderTests: XCTestCase {
         XCTAssertEqual(separated[2], boxes[2])
     }
 }
+
+final class ContentStreamTests: XCTestCase {
+    func testActualTextSpansAreTakenOut() throws {
+        let content = Array("q /Im1 Do Q /Span << /ActualText <feff30fc> >> BDC BT (a) Tj ET EMC /OC /oc1 BDC 1 0 0 RG EMC".utf8)
+        let stripped = String(decoding: try XCTUnwrap(ContentStream.removingActualText(content)), as: UTF8.self)
+        XCTAssertFalse(stripped.contains("ActualText"))
+        XCTAssertTrue(stripped.contains("BT (a) Tj ET"))
+        // Optional content stays, with its own EMC
+        XCTAssertTrue(stripped.contains("/OC /oc1 BDC 1 0 0 RG EMC"))
+    }
+
+    func testContentWithoutActualTextIsLeftAlone() {
+        XCTAssertNil(ContentStream.removingActualText(Array("q BT (a) Tj ET Q".utf8)))
+    }
+}
