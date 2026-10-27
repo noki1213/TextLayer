@@ -11,6 +11,9 @@ struct CharacterMatch: CustomStringConvertible {
 
     private(set) var printed: [Kind: Int] = [:]
     private(set) var matched: [Kind: Int] = [:]
+    /// The own text's characters, and how many of them are also printed
+    private(set) var ownTotal = 0
+    private(set) var ownMatched = 0
 
     /// Fewer printed characters of a kind than this say nothing about it
     static let minimumSample = 15
@@ -27,6 +30,13 @@ struct CharacterMatch: CustomStringConvertible {
     mutating func add(printed printedCharacters: [Character], own: [Character]) {
         var available: [Character: Int] = [:]
         for character in own { available[character, default: 0] += 1 }
+        var printedAvailable: [Character: Int] = [:]
+        for character in printedCharacters { printedAvailable[character, default: 0] += 1 }
+        ownTotal += own.count
+        for character in own where (printedAvailable[character] ?? 0) > 0 {
+            printedAvailable[character]! -= 1
+            ownMatched += 1
+        }
         for character in printedCharacters {
             let kind = Self.kind(of: character)
             printed[kind, default: 0] += 1
@@ -49,8 +59,10 @@ struct CharacterMatch: CustomStringConvertible {
     var isBroken: Bool {
         let total = printed.values.reduce(0, +)
         guard total >= 30 else { return false }
-        // Garbled throughout
-        if recall(of: nil) < 0.25 { return true }
+        // Garbled throughout: little of what is printed is there, and much of what is there is not printed.
+        // Text that is only short of what pictures and handwriting hold is still printed as it reads
+        let precision = ownTotal == 0 ? 0 : Double(ownMatched) / Double(ownTotal)
+        if recall(of: nil) < 0.25, precision < 0.5 { return true }
         // Japanese lost while the rest came through
         let japanese = (printed[.kanji] ?? 0) + (printed[.kana] ?? 0)
         let japaneseHits = (matched[.kanji] ?? 0) + (matched[.kana] ?? 0)
@@ -68,6 +80,6 @@ struct CharacterMatch: CustomStringConvertible {
     var description: String {
         Kind.allCases.map { kind in
             "\(kind) \(matched[kind] ?? 0)/\(printed[kind] ?? 0)"
-        }.joined(separator: ", ")
+        }.joined(separator: ", ") + ", own text printed \(ownMatched)/\(ownTotal)"
     }
 }

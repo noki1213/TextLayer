@@ -8,8 +8,9 @@ enum PageOCR {
     /// Pixels along the shorter side of the rendered page
     static let shortSide: CGFloat = 2000
     /// Tiles along the longer side are at most this many times as long as they are wide, so a
-    /// page made of stitched scrolling screenshots is still read at full size
-    static let maxTileAspect: CGFloat = 1.6
+    /// page made of stitched scrolling screenshots is still read at full size. Wide enough that a
+    /// 16:9 slide is read whole
+    static let maxTileAspect: CGFloat = 2.2
     static let tileOverlap: CGFloat = 0.12
 
     static func recognize(_ page: CGPDFPage, renderLock: NSLock) throws -> [PlacedLine] {
@@ -51,9 +52,9 @@ enum PageOCR {
             let tile = vertical
                 ? CGRect(x: 0, y: start, width: pixelWidth, height: tileLength)
                 : CGRect(x: start, y: 0, width: tileLength, height: pixelHeight)
-            // A line counts for the tile where its centre is clear of the overlap
-            let keepFrom = index == 0 ? -CGFloat.infinity : start + overlap / 2
-            let keepTo = index == starts.count - 1 ? CGFloat.infinity : start + tileLength - overlap / 2
+            // Neighbouring tiles share their overlap at its middle; a line belongs to the tile its centre falls in
+            let keepFrom = index == 0 ? -CGFloat.infinity : (starts[index - 1] + tileLength + start) / 2
+            let keepTo = index == starts.count - 1 ? CGFloat.infinity : (start + tileLength + starts[index + 1]) / 2
 
             guard let image = render(page, transform: toPixels, tile: tile, lock: renderLock) else { continue }
             for line in try TextRecognizer.recognizeLines(in: image) {
