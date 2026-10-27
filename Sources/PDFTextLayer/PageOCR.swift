@@ -46,7 +46,7 @@ enum PageOCR {
         var starts: [CGFloat] = [0]
         while starts.last! + tileLength < along { starts.append(min(starts.last! + step, along - tileLength)) }
 
-        var placed: [PlacedLine] = []
+        var found: [(text: String, rect: CGRect)] = []
         for (index, start) in starts.enumerated() {
             let tile = vertical
                 ? CGRect(x: 0, y: start, width: pixelWidth, height: tileLength)
@@ -65,18 +65,23 @@ enum PageOCR {
                 )
                 let centre = vertical ? rect.midY : rect.midX
                 guard centre >= keepFrom, centre < keepTo else { continue }
-                let origin = CGPoint(x: rect.minX, y: rect.minY).applying(toPage)
-                let right = CGPoint(x: rect.maxX, y: rect.minY).applying(toPage)
-                let top = CGPoint(x: rect.minX, y: rect.maxY).applying(toPage)
-                placed.append(PlacedLine(
-                    text: line.text,
-                    origin: origin,
-                    run: CGVector(dx: right.x - origin.x, dy: right.y - origin.y),
-                    rise: CGVector(dx: top.x - origin.x, dy: top.y - origin.y)
-                ))
+                found.append((line.text, rect))
             }
         }
-        return placed
+
+        // Ordered as the page is shown, then placed in the page's own space
+        return ReadingOrder.order(found.map(\.rect), pageWidth: pixelWidth).map { index in
+            let (text, rect) = found[index]
+            let origin = CGPoint(x: rect.minX, y: rect.minY).applying(toPage)
+            let right = CGPoint(x: rect.maxX, y: rect.minY).applying(toPage)
+            let top = CGPoint(x: rect.minX, y: rect.maxY).applying(toPage)
+            return PlacedLine(
+                text: text,
+                origin: origin,
+                run: CGVector(dx: right.x - origin.x, dy: right.y - origin.y),
+                rise: CGVector(dx: top.x - origin.x, dy: top.y - origin.y)
+            )
+        }
     }
 
     /// Greyscale is enough for text and a quarter of the memory of RGBA
