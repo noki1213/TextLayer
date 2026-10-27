@@ -24,12 +24,12 @@ Download `textlayer` from [Releases](../../releases), then:
 ```sh
 mkdir -p ~/.local/bin
 mv ~/Downloads/textlayer ~/.local/bin/
-xattr -d com.apple.quarantine ~/.local/bin/textlayer
 chmod +x ~/.local/bin/textlayer
 ```
 
-The release binary is signed ad hoc, not notarized; `xattr` lets macOS run it. Put
-`~/.local/bin` on your `PATH`, or use any folder that is.
+Put `~/.local/bin` on your `PATH`, or use any folder that is. The release binary runs on Apple
+silicon and Intel Macs and is signed ad hoc, not notarized; if macOS refuses to run it, remove the
+download flag with `xattr -d com.apple.quarantine ~/.local/bin/textlayer`.
 
 ### Build from source
 
@@ -186,12 +186,12 @@ MIT. See [LICENSE](LICENSE).
 ```sh
 mkdir -p ~/.local/bin
 mv ~/Downloads/textlayer ~/.local/bin/
-xattr -d com.apple.quarantine ~/.local/bin/textlayer
 chmod +x ~/.local/bin/textlayer
 ```
 
-配布しているバイナリはアドホック署名で、公証していません。`xattr` で macOS が実行できるように
-なります。`~/.local/bin` を `PATH` に入れるか、`PATH` の通ったフォルダに置いてください。
+`~/.local/bin` を `PATH` に入れるか、`PATH` の通ったフォルダに置いてください。配布しているバイナリは
+Apple シリコンと Intel の Mac で動き、アドホック署名で公証していません。macOS に実行を断られたら、
+`xattr -d com.apple.quarantine ~/.local/bin/textlayer` でダウンロードの印を外してください。
 
 ### ソースからビルド
 
