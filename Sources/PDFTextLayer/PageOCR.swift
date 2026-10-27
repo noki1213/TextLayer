@@ -47,7 +47,7 @@ enum PageOCR {
         var starts: [CGFloat] = [0]
         while starts.last! + tileLength < along { starts.append(min(starts.last! + step, along - tileLength)) }
 
-        var found: [(text: String, rect: CGRect, direction: Direction)] = []
+        var found: [(text: String, rect: CGRect, direction: LineDirection)] = []
         for (index, start) in starts.enumerated() {
             let tile = vertical
                 ? CGRect(x: 0, y: start, width: pixelWidth, height: tileLength)
@@ -70,17 +70,12 @@ enum PageOCR {
                     dx: (line.bottomRight.x - line.bottomLeft.x) * tile.width,
                     dy: (line.bottomRight.y - line.bottomLeft.y) * tile.height
                 )
-                found.append((line.text, rect, Direction(run)))
+                found.append((line.text, rect, LineDirection(run)))
             }
         }
 
         // Kept clear of the neighbouring lines across their reading direction
-        var rects = found.map(\.rect)
-        let horizontal = found.indices.filter { !found[$0].direction.isVertical }
-        let down = found.indices.filter { found[$0].direction.isVertical }
-        for (index, rect) in zip(horizontal, LineBoxes.separated(horizontal.map { rects[$0] })) { rects[index] = rect }
-        let transposed = LineBoxes.separated(down.map { rects[$0].transposed }).map(\.transposed)
-        for (index, rect) in zip(down, transposed) { rects[index] = rect }
+        let rects = LineDirection.separated(found.map(\.rect), directions: found.map(\.direction))
 
         let order = TextRecognizer.linesAreInReadingOrder
             ? Array(found.indices)
@@ -94,35 +89,6 @@ enum PageOCR {
                 run: CGVector(dx: e.x - o.x, dy: e.y - o.y),
                 rise: CGVector(dx: t.x - o.x, dy: t.y - o.y)
             )
-        }
-    }
-
-    /// Which way a line reads on the rendered page
-    enum Direction {
-        case right, down, up, left
-
-        init(_ run: CGVector) {
-            if abs(run.dx) >= abs(run.dy) {
-                self = run.dx >= 0 ? .right : .left
-            } else {
-                self = run.dy <= 0 ? .down : .up
-            }
-        }
-
-        var isVertical: Bool { self == .down || self == .up }
-
-        /// Where the text starts, where it ends, and the top of its first glyph
-        func corners(of rect: CGRect) -> (CGPoint, CGPoint, CGPoint) {
-            switch self {
-            case .right:
-                return (CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.minX, y: rect.maxY))
-            case .left:
-                return (CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.maxX, y: rect.minY))
-            case .down:
-                return (CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY))
-            case .up:
-                return (CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.minY))
-            }
         }
     }
 
@@ -147,8 +113,4 @@ enum PageOCR {
         lock.unlock()
         return context.makeImage()
     }
-}
-
-private extension CGRect {
-    var transposed: CGRect { CGRect(x: minY, y: minX, width: height, height: width) }
 }
