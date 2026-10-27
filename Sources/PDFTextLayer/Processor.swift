@@ -47,8 +47,9 @@ public final class Processor {
     private let queue: OperationQueue
     private let logLock = NSLock()
 
-    /// A page with fewer letters than this counts as having no text
-    static let minimumPageText = 10
+    /// A page with fewer letters of its own than this is read again: what it has is at most a
+    /// heading, a date or a page number over pictures or handwriting, and reading it again keeps those
+    static let minimumPageText = 60
 
     public init(options: ProcessOptions) {
         self.options = options
@@ -181,9 +182,9 @@ public final class Processor {
         let read = try recognize(pages: samples, document: document, lock: lock)
         var match = CharacterMatch()
         for index in samples {
-            let printed = Self.letters(of: (read[index] ?? []).map(\.text).joined())
-            guard printed.count >= 30 else { continue }
-            match.add(printed: printed, own: Self.letters(of: texts[index]))
+            let printedLines = (read[index] ?? []).map { Self.letters(of: $0.text) }
+            guard printedLines.joined().count >= 30 else { continue }
+            match.add(printedLines: printedLines, own: Self.letters(of: texts[index]))
         }
         var assessment: Assessment
         if match.isBroken {
@@ -209,7 +210,7 @@ public final class Processor {
     /// Share of the printed characters that the page's own text also has (as a multiset)
     static func recall(printed: [Character], own: [Character]) -> Double {
         var match = CharacterMatch()
-        match.add(printed: printed, own: own)
+        match.add(printedLines: [printed], own: own)
         return match.recall(of: nil)
     }
 

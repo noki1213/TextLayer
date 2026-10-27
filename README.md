@@ -4,8 +4,9 @@ Adds an invisible text layer to PDFs whose text cannot be read out — pages mad
 scans, and files whose own text has lost its Japanese — so they can be searched, selected and read
 as text. Recognition uses macOS's Vision framework (Japanese and English).
 
-- PDFs that already have sound text are left alone. A page counts as having no text when fewer
-  than 10 letters come out of it. A file's own text counts as broken when it is mostly control
+- PDFs that already have sound text are left alone. A page counts as needing text when fewer
+  than 60 letters come out of it (a heading, a date or a page number over pictures or
+  handwriting); reading it again keeps those. A file's own text counts as broken when it is mostly control
   characters, or when, compared with what Vision reads off a few of its pages, it misses most of
   the characters, lacks the Japanese while keeping the rest, or lacks the kanji while keeping the
   kana. Text that only misses what is printed inside pictures misses every kind of character
