@@ -115,6 +115,17 @@ public final class FolderWatcher {
         timer.resume()
         self.timer = timer
         log("watching \(folder.path)")
+
+        // A protected folder (iCloud Drive, Documents) sends no events until the command may read it;
+        // reading it once now raises the permission prompt and says in the log whether it is allowed
+        workQueue.async { [self] in
+            do {
+                _ = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+                log("can read \(folder.path)")
+            } catch {
+                log("cannot read \(folder.path): \(error.localizedDescription). Allow this command to read it in System Settings > Privacy & Security")
+            }
+        }
     }
 
     private func noticed(_ paths: [String]) {
