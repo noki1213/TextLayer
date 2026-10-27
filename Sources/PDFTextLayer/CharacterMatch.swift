@@ -94,12 +94,15 @@ struct CharacterMatch: CustomStringConvertible {
         // Garbled throughout
         let precision = ownTotal == 0 ? 0 : Double(ownMatched) / Double(ownTotal)
         if recall(of: nil) < 0.25, precision < 0.5 { return true }
+        // OCR reads the odd dash or symbol in Latin text as a kanji; Japanese that makes up only a
+        // sliver of the page is that, not text that went missing
+        let japanese = (printed[.kanji] ?? 0) + (printed[.kana] ?? 0)
+        guard Double(japanese) >= Double(total) * 0.05 else { return false }
         // Kanji missing from lines whose kana are there
         if Self.lacks(anchoredKanji) { return true }
         // Japanese missing from lines whose other characters are there
         if Self.lacks(anchoredJapanese) { return true }
         // No Japanese at all although the rest came through
-        let japanese = (printed[.kanji] ?? 0) + (printed[.kana] ?? 0)
         let japaneseHits = (matched[.kanji] ?? 0) + (matched[.kana] ?? 0)
         if japanese >= Self.minimumSample, (printed[.other] ?? 0) >= Self.minimumSample,
            Double(japaneseHits) < Double(japanese) * 0.1, recall(of: .other) >= 0.5 {
