@@ -14,6 +14,6 @@ let package = Package(
         .target(name: "TextRecognition"),
         .target(name: "PDFTextLayer", dependencies: ["TextRecognition"]),
         .executableTarget(name: "textlayer", dependencies: ["PDFTextLayer"]),
-        .testTarget(name: "PDFTextLayerTests", dependencies: ["PDFTextLayer"]),
+        .testTarget(name: "PDFTextLayerTests", dependencies: ["PDFTextLayer", "TextRecognition"]),
     ]
 )
