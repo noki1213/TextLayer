@@ -1,0 +1,6 @@
+.build/
+.DS_Store
+.env
+.claude/
+CLAUDE.md
+install.sh
