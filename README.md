@@ -5,8 +5,11 @@ scans, and files whose own text has lost its Japanese — so they can be searche
 as text. Recognition uses macOS's Vision framework (Japanese and English).
 
 - PDFs that already have sound text are left alone. A page counts as having no text when fewer
-  than 10 letters come out of it; a file's own text counts as broken when it is mostly control
-  characters, or when it holds less than 60% of the characters Vision reads off the same pages.
+  than 10 letters come out of it. A file's own text counts as broken when it is mostly control
+  characters, or when, compared with what Vision reads off a few of its pages, it misses most of
+  the characters, lacks the Japanese while keeping the rest, or lacks the kanji while keeping the
+  kana. Text that only misses what is printed inside pictures misses every kind of character
+  about equally and counts as sound.
 - Pages look exactly as before. The text goes in as an incremental update after the original
   bytes, which stay untouched: annotations, links, bookmarks and metadata are kept as they were,
   and the file before the update is its first N bytes.
