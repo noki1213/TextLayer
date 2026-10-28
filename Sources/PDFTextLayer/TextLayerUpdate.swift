@@ -108,12 +108,26 @@ public enum TextLayerUpdate {
             case nil: contents = []
             default: throw PDFParseError("page \(index + 1) has unreadable contents")
             }
-            // Spans of the page's own /ActualText would win over the empty one around them, so they go
             if let decoded = try? contents.map({ part -> [UInt8] in
                 guard let stream = file.resolve(part) else { throw PDFParseError("missing content stream") }
                 return try file.decodedStream(stream)
-            }), let stripped = ContentStream.removingActualText(Array(decoded.joined(separator: [0x0A]))) {
-                contents = [writer.add(.stream(PDFDictionary([("Filter", .name("FlateDecode"))]), Flate.encode(stripped)))]
+            }) {
+                var content = Array(decoded.joined(separator: [0x0A]))
+                var changed = false
+                // A page whose own text is all invisible loses it: nothing it drew changes, and viewers
+                // that ignore /ActualText (PDFKit) would otherwise show the old text with the new
+                if ContentStream.showsOnlyInvisibleText(content), let bare = ContentStream.removingTextObjects(content) {
+                    content = bare
+                    changed = true
+                }
+                // Spans of the page's own /ActualText would win over the empty one around them, so they go
+                if let stripped = ContentStream.removingActualText(content) {
+                    content = stripped
+                    changed = true
+                }
+                if changed {
+                    contents = [writer.add(.stream(PDFDictionary([("Filter", .name("FlateDecode"))]), Flate.encode(content)))]
+                }
             }
 
             var dict = page.dictionary

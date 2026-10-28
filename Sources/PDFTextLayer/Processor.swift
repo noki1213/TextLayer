@@ -50,6 +50,10 @@ public final class Processor {
     /// A page with fewer letters of its own than this is read again: what it has is at most a
     /// heading, a date or a page number over pictures or handwriting, and reading it again keeps those
     static let minimumPageText = 60
+    /// Share of the printed characters an invisible OCR layer has to hold to be kept
+    static let minimumLayerRecall = 0.8
+    /// Share of an invisible OCR layer's own characters that have to be printed for it to be kept
+    static let minimumLayerPrecision = 0.85
 
     public init(options: ProcessOptions) {
         self.options = options
@@ -100,7 +104,9 @@ public final class Processor {
 
         let targets: [Int]
         switch assessment.plan {
-        case .nothing(let reason): return .skipped(reason)
+        case .nothing(let reason):
+            if options.dryRun, let match = assessment.match { return .skipped(reason + " [\(match.description)]") }
+            return .skipped(reason)
         case .fillEmptyPages(let indices): targets = indices
         case .replaceText: targets = Array(0..<pages.count)
         }
@@ -186,12 +192,10 @@ public final class Processor {
         // Compare a few pages' own text with what is printed on them
         let samples = Array(Set([0.2, 0.5, 0.8].map { withText[Int(Double(withText.count - 1) * $0)] })).sorted()
 
-        // Text that is all invisible is another OCR's layer over a scan; reading it again does better
-        if samples.allSatisfy({ index in
+        // Text that is all invisible is an OCR layer over a picture
+        let invisibleOnly = samples.allSatisfy { index in
             guard let content = pageContent(file: file, page: pages[index]) else { return false }
             return ContentStream.showsOnlyInvisibleText(content)
-        }) {
-            return Assessment(plan: .replaceText(recall: 0))
         }
         let read = try recognize(pages: samples, document: document, lock: lock)
         var match = CharacterMatch()
@@ -201,7 +205,15 @@ public final class Processor {
             match.add(printedLines: printedLines, own: Self.letters(of: texts[index]))
         }
         var assessment: Assessment
-        if match.isBroken {
+        // Another OCR's layer stays when it reads as well as Vision does (one made the same way,
+        // such as a captured book); a weaker one, as scanners tend to make, is read again
+        let layerReadsWell = match.recall(of: nil) >= Self.minimumLayerRecall && match.precision >= Self.minimumLayerPrecision
+        if invisibleOnly, !match.isBroken, !layerReadsWell {
+            assessment = Assessment(plan: .replaceText(recall: match.recall(of: nil)))
+        } else if invisibleOnly, !match.isBroken {
+            // Reading any of its pages again would only show the same text twice in PDFKit
+            assessment = Assessment(plan: .nothing("has an OCR layer that reads well"))
+        } else if match.isBroken {
             assessment = Assessment(plan: .replaceText(recall: match.recall(of: nil)))
         } else if empty.isEmpty {
             assessment = Assessment(plan: .nothing("has text"))

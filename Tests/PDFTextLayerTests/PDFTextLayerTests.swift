@@ -95,3 +95,13 @@ final class InvisibleTextTests: XCTestCase {
         XCTAssertEqual(try pageString([line]).filter { !$0.isWhitespace }, text)
     }
 }
+
+final class InvisibleTextRemovalTests: XCTestCase {
+    func testTextObjectsGoAndDrawingStays() throws {
+        let content = Array("q 100 0 0 50 0 0 cm /Im1 Do Q 3 Tr BT /F1 9 Tf 1 0 0 1 5 5 Tm (abc) Tj ET BT (d) Tj ET".utf8)
+        XCTAssertTrue(ContentStream.showsOnlyInvisibleText(content))
+        let bare = String(decoding: try XCTUnwrap(ContentStream.removingTextObjects(content)), as: UTF8.self)
+        XCTAssertTrue(bare.contains("/Im1 Do"))
+        XCTAssertFalse(bare.contains("Tj"))
+    }
+}
