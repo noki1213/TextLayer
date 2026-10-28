@@ -35,16 +35,23 @@ public enum PDFFinder {
 public enum Restorer {
     public static func restore(_ url: URL, backupDirectory: URL) throws -> String {
         let log = (try? String(contentsOf: backupDirectory.appendingPathComponent("log.tsv"), encoding: .utf8)) ?? ""
-        let path = url.standardizedFileURL.path
-        guard let entry = log.split(separator: "\n").map({ $0.split(separator: "\t", omittingEmptySubsequences: false) })
-            .last(where: { $0.count >= 6 && String($0[1]) == path }) else {
+        let path = url.standardizedFileURL.path.precomposedStringWithCanonicalMapping
+        let entries = log.split(separator: "\n").map { $0.split(separator: "\t", omittingEmptySubsequences: false) }
+            .filter { $0.count >= 6 }
+        let current = try Data(contentsOf: url)
+        // A file moved or renamed since apply is found by its original bytes, which start it
+        let byPath = entries.last { String($0[1]).precomposedStringWithCanonicalMapping == path }
+        let byContent = entries.last { entry in
+            guard let size = Int(entry[2]), size > 0, size < current.count else { return false }
+            return SHA256.hash(data: current.prefix(size)).map({ String(format: "%02x", $0) }).joined() == String(entry[3])
+        }
+        guard let entry = byPath ?? byContent else {
             throw PDFParseError("not in the backup log")
         }
         let originalSize = Int(entry[2]) ?? -1
         let digest = String(entry[3])
         let backup = String(entry[4])
 
-        let current = try Data(contentsOf: url)
         // The update only appended, so the original is the start of the file as long as nothing rewrote it since
         if originalSize > 0, current.count > originalSize,
            SHA256.hash(data: current.prefix(originalSize)).map({ String(format: "%02x", $0) }).joined() == digest {
