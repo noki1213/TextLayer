@@ -6,7 +6,8 @@ import Foundation
 /// page by page (draw the page image first, then this over it).
 public enum InvisibleText {
     /// Each line is laid in the direction it reads (vertical Japanese runs down its column) and
-    /// stretched to the length of its box, so a selection lines up with the printed text. Boxes
+    /// stretched to the length of its box, so a selection lines up with the printed text and no
+    /// glyph runs off the page. Boxes
     /// are kept clear of their neighbours across the reading direction, and lines are written in
     /// reading order, so viewers that group characters by position select one line at a time.
     public static func draw(_ lines: [RecognizedLine], in box: CGRect, context: CGContext) {
@@ -37,7 +38,9 @@ public enum InvisibleText {
             let height = hypot(top.x - origin.x, top.y - origin.y)
             guard length > 0, height > 0 else { continue }
 
-            let font = CTFontCreateWithName("HiraginoSans-W3" as CFString, height * 0.85, nil)
+            // Japanese falls back to a Japanese font. Hiragino's own Latin letters are not used:
+            // PDFKit reads a doubled one ("ll" in "all") as a single letter
+            let font = CTFontCreateWithName("Helvetica" as CFString, height * 0.85, nil)
             let attributed = NSAttributedString(
                 string: lines[index].text,
                 attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font]
@@ -50,7 +53,9 @@ public enum InvisibleText {
             context.saveGState()
             context.translateBy(x: origin.x, y: origin.y)
             context.rotate(by: atan2(end.y - origin.y, end.x - origin.x))
-            context.textMatrix = CGAffineTransform(scaleX: length / width, y: 1)
+            // Scaling the text matrix instead would narrow the glyphs but keep their advances
+            context.scaleBy(x: length / width, y: 1)
+            context.textMatrix = .identity
             context.textPosition = CGPoint(x: 0, y: descent)
             CTLineDraw(ctLine, context)
             context.restoreGState()
