@@ -1,3 +1,4 @@
+import PDFKit
 import XCTest
 @testable import PDFTextLayer
 import TextRecognition
@@ -61,5 +62,36 @@ final class ContentStreamTests: XCTestCase {
 
     func testContentWithoutActualTextIsLeftAlone() {
         XCTAssertNil(ContentStream.removingActualText(Array("q BT (a) Tj ET Q".utf8)))
+    }
+}
+
+final class InvisibleTextTests: XCTestCase {
+    /// Draws the lines on one page and returns what PDFKit reads from it
+    private func pageString(_ lines: [RecognizedLine]) throws -> String {
+        let data = NSMutableData()
+        var media = CGRect(x: 0, y: 0, width: 400, height: 400)
+        let consumer = try XCTUnwrap(CGDataConsumer(data: data))
+        let context = try XCTUnwrap(CGContext(consumer: consumer, mediaBox: &media, nil))
+        context.beginPDFPage(nil)
+        InvisibleText.draw(lines, in: media, context: context)
+        context.endPDFPage()
+        context.closePDF()
+        return try XCTUnwrap(PDFDocument(data: data as Data)?.page(at: 0)?.string)
+    }
+
+    func testDoubledLettersSurviveInANarrowBox() throws {
+        let line = RecognizedLine(text: "all fell well", box: CGRect(x: 0.1, y: 0.5, width: 0.15, height: 0.05))
+        XCTAssertEqual(try pageString([line]).filter { !$0.isWhitespace }, "allfellwell")
+    }
+
+    func testALongVerticalLineStaysOnThePage() throws {
+        // A column reading down from near the top to near the bottom of the page
+        let text = "ハイウェイで、トラックの運転手に頭を撃たれ、バイクから落ちて死ぬ。"
+        let line = RecognizedLine(
+            text: text,
+            topLeft: CGPoint(x: 0.55, y: 0.95), topRight: CGPoint(x: 0.55, y: 0.05),
+            bottomLeft: CGPoint(x: 0.5, y: 0.95), bottomRight: CGPoint(x: 0.5, y: 0.05)
+        )
+        XCTAssertEqual(try pageString([line]).filter { !$0.isWhitespace }, text)
     }
 }
