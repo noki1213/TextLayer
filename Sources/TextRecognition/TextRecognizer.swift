@@ -12,6 +12,8 @@ public struct RecognizedLine: Sendable {
     public var topRight: CGPoint
     public var bottomLeft: CGPoint
     public var bottomRight: CGPoint
+    /// How sure the reader is of the text, 0...1
+    var confidence: Float = 1
 
     public init(text: String, topLeft: CGPoint, topRight: CGPoint, bottomLeft: CGPoint, bottomRight: CGPoint) {
         self.text = text
@@ -51,6 +53,10 @@ public enum TextRecognizer {
 
     /// Blocks the calling thread. Safe to call from several threads at once.
     public static func recognizeLines(in image: CGImage) throws -> [RecognizedLine] {
+        MissedText.fill(try read(image), in: image, read: read)
+    }
+
+    private static func read(_ image: CGImage) throws -> [RecognizedLine] {
         if #available(macOS 26, *) {
             return try readDocument(image)
         }
@@ -60,7 +66,9 @@ public enum TextRecognizer {
         return (request.results ?? []).compactMap { observation in
             guard let text = observation.topCandidates(1).first?.string,
                   !text.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-            return RecognizedLine(text: text, box: observation.boundingBox)
+            var line = RecognizedLine(text: text, box: observation.boundingBox)
+            line.confidence = observation.topCandidates(1).first?.confidence ?? 0
+            return line
         }
     }
 
@@ -84,15 +92,17 @@ public enum TextRecognizer {
                 let observations = try await request.perform(on: image)
                 box.result = .success(observations.flatMap { observation in
                     observation.document.text.lines.compactMap { line -> RecognizedLine? in
-                        guard let text = line.topCandidates(1).first?.string,
-                              !text.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-                        return RecognizedLine(
-                            text: text,
+                        guard let candidate = line.topCandidates(1).first,
+                              !candidate.string.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+                        var recognized = RecognizedLine(
+                            text: candidate.string,
                             topLeft: CGPoint(x: line.topLeft.x, y: line.topLeft.y),
                             topRight: CGPoint(x: line.topRight.x, y: line.topRight.y),
                             bottomLeft: CGPoint(x: line.bottomLeft.x, y: line.bottomLeft.y),
                             bottomRight: CGPoint(x: line.bottomRight.x, y: line.bottomRight.y)
                         )
+                        recognized.confidence = candidate.confidence
+                        return recognized
                     }
                 })
             } catch {
