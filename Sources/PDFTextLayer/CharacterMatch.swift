@@ -77,6 +77,9 @@ struct CharacterMatch: CustomStringConvertible {
         }
     }
 
+    /// Share of the own text's characters that are printed
+    var precision: Double { ownTotal == 0 ? 0 : Double(ownMatched) / Double(ownTotal) }
+
     /// nil: all kinds together
     func recall(of kind: Kind?) -> Double {
         let total = kind.map { printed[$0] ?? 0 } ?? printed.values.reduce(0, +)

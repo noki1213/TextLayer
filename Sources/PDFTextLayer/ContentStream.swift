@@ -113,3 +113,46 @@ extension ContentStream {
         return shown
     }
 }
+
+extension ContentStream {
+    /// The content with every text object (BT ... ET) taken out, everything else byte for byte as
+    /// it was. Only for content whose text is all invisible, where this changes nothing that is
+    /// drawn. Returns nil when the content holds something this does not read (an inline image).
+    static func removingTextObjects(_ content: [UInt8]) -> [UInt8]? {
+        var lexer = PDFLexer(content)
+        var removed: [Range<Int>] = []
+        var objectStart: Int?
+        while true {
+            lexer.skipWhitespace()
+            guard let byte = lexer.peek() else { break }
+            let isOperandStart = byte == 0x2F || byte == 0x28 || byte == 0x3C || byte == 0x5B
+                || byte == 0x2B || byte == 0x2D || byte == 0x2E || (0x30...0x39).contains(byte)
+            if isOperandStart {
+                guard (try? lexer.parseObject()) != nil else { return nil }
+                continue
+            }
+            let start = lexer.position
+            let token = lexer.readToken()
+            switch token {
+            case "": return nil
+            case "BI": return nil
+            case "BT": objectStart = start
+            case "ET":
+                guard let from = objectStart else { return nil }
+                removed.append(from..<lexer.position)
+                objectStart = nil
+            default: break
+            }
+        }
+        guard objectStart == nil, !removed.isEmpty else { return nil }
+        var output: [UInt8] = []
+        var cursor = 0
+        for range in removed {
+            output += content[cursor..<range.lowerBound]
+            output.append(0x20)
+            cursor = range.upperBound
+        }
+        output += content[cursor...]
+        return output
+    }
+}
