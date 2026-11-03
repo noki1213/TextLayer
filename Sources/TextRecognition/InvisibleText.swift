@@ -7,9 +7,9 @@ import Foundation
 public enum InvisibleText {
     /// Each line is laid in the direction it reads (vertical Japanese runs down its column) and
     /// stretched to the length of its box, so a selection lines up with the printed text and no
-    /// glyph runs off the page. Boxes
-    /// are kept clear of their neighbours across the reading direction, and lines are written in
-    /// reading order, so viewers that group characters by position select one line at a time.
+    /// glyph runs off the page. Boxes are kept clear of their neighbours across the reading
+    /// direction, and lines are written in reading order, so viewers that group characters by
+    /// position select one line at a time.
     public static func draw(_ lines: [RecognizedLine], in box: CGRect, context: CGContext) {
         let rects = lines.map { line in
             CGRect(
