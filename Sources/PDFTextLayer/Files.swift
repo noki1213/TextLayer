@@ -74,9 +74,9 @@ public enum Restorer {
 
 /// Watches a folder tree with FSEvents and hands PDFs to the processor once they have stopped changing.
 public final class FolderWatcher {
-    let folder: URL
-    let settle: TimeInterval
-    let processor: Processor
+    public let folder: URL
+    private var settle: TimeInterval
+    private var processor: Processor
     private let stateQueue = DispatchQueue(label: "textlayer.watch.state")
     private let workQueue = DispatchQueue(label: "textlayer.watch.work", qos: .utility)
     private var pending: [String: Date] = [:]
@@ -135,6 +135,30 @@ public final class FolderWatcher {
         }
     }
 
+    /// Uses new settings from the next batch on; a batch being read finishes with the old ones.
+    public func update(settle: TimeInterval, processor: Processor) {
+        stateQueue.async { [self] in
+            self.settle = settle
+            self.processor = processor
+        }
+    }
+
+    /// Stops watching. A batch being read still finishes.
+    public func stop() {
+        stateQueue.sync {
+            timer?.cancel()
+            timer = nil
+            if let stream {
+                FSEventStreamStop(stream)
+                FSEventStreamInvalidate(stream)
+                FSEventStreamRelease(stream)
+            }
+            stream = nil
+            pending = [:]
+        }
+        log("stopped watching \(folder.path)")
+    }
+
     private func noticed(_ paths: [String]) {
         for path in paths {
             let url = URL(fileURLWithPath: path)
@@ -157,6 +181,7 @@ public final class FolderWatcher {
         guard !ready.isEmpty else { return }
         for path in ready { pending[path] = nil }
         working = true
+        let processor = processor
         // Opening a file can block on a permission prompt, so it happens away from the event queue
         workQueue.async { [self] in
             for path in ready where FileManager.default.fileExists(atPath: path) {
@@ -170,7 +195,7 @@ public final class FolderWatcher {
         }
     }
 
-    private func log(_ message: String) {
+    public func log(_ message: String) {
         let stamp = ISO8601DateFormatter().string(from: Date())
         print("\(stamp)\t\(message)")
         fflush(stdout)
