@@ -47,7 +47,9 @@ textlayer check <file-or-folder>...      Show what each PDF needs, without chang
 textlayer apply [options] <file-or-folder>...
                                          Add a text layer to PDFs that need one
 textlayer restore <file>...              Put files back as they were before apply
-textlayer watch [options] <folder>       Keep watching a folder and apply to new or changed PDFs
+textlayer watch [options] [<folder>]     Keep watching a folder and apply to new or changed PDFs
+                                         (default: watchFolder in the settings file)
+textlayer settings                       Open the settings window
 
 Options for apply and watch:
   --backup-dir <dir>   Where copies of the originals go
@@ -66,13 +68,42 @@ batch, run it at low priority:
 nice -n 19 textlayer apply ~/Documents/Papers
 ```
 
+### Settings
+
+`textlayer settings` opens a settings window; every change is saved at once. The same settings
+live in `~/.config/textlayer/settings.json`, which can be edited by hand (if it is a symbolic
+link, the file it points to is read and written). Options given on the command line win over the
+file, and a running `textlayer watch` picks up changes to it without a restart.
+
+```json
+{
+  "watchFolder": "~/Documents/Papers",
+  "settleSeconds": 30,
+  "keepBackups": true,
+  "backupFolder": "~/Library/Application Support/TextLayer/Originals",
+  "jobs": 0
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `watchFolder` | Folder `watch` watches when started without one |
+| `settleSeconds` | How long a file has to stay unchanged before `watch` reads it |
+| `keepBackups` | Keep a copy of each original before changing it |
+| `backupFolder` | Where the copies and `log.tsv` go |
+| `jobs` | Pages read at once; `0` is CPU cores - 2 |
+
+A value that can't be used keeps its default and is reported on standard error; keys the command
+does not know are left in the file.
+
 `apply` copies each file into the backup folder (mirroring its path under your home folder)
 before changing it and records it in `log.tsv` there. `restore` cuts the file back to its
 original length when nothing has changed it since, and otherwise copies the backup over it.
 
 ### Watching a folder with launchd
 
-Save as `~/Library/LaunchAgents/textlayer.watch.plist` (adjust the paths), then run
+Set the folder in the settings (or add it after `watch` in the plist), save this as
+`~/Library/LaunchAgents/textlayer.watch.plist` (adjust the paths), then run
 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/textlayer.watch.plist`.
 
 ```xml
@@ -85,7 +116,6 @@ Save as `~/Library/LaunchAgents/textlayer.watch.plist` (adjust the paths), then 
     <array>
         <string>/Users/you/.local/bin/textlayer</string>
         <string>watch</string>
-        <string>/Users/you/Documents/Papers</string>
     </array>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><true/>
@@ -209,7 +239,9 @@ textlayer check <ファイルかフォルダ>...     各 PDF に何が要るか�
 textlayer apply [オプション] <ファイルかフォルダ>...
                                           文字の層が要る PDF に足す
 textlayer restore <ファイル>...             apply の前の状態に戻す
-textlayer watch [オプション] <フォルダ>     フォルダを見張り、新しい・変わった PDF に apply する
+textlayer watch [オプション] [<フォルダ>]   フォルダを見張り、新しい・変わった PDF に apply する
+                                          （既定: 設定ファイルの watchFolder）
+textlayer settings                        設定の画面を開く
 
 apply と watch のオプション:
   --backup-dir <dir>   元のファイルの写しを置く場所
@@ -228,13 +260,31 @@ apply と watch のオプション:
 nice -n 19 textlayer apply ~/Documents/Papers
 ```
 
+### 設定
+
+`textlayer settings` で設定の画面が開き、変えるとすぐに保存されます。同じ設定は
+`~/.config/textlayer/settings.json` にあり、手で書き換えることもできます（シンボリックリンクなら、
+リンク先のファイルを読み書きします）。コマンドラインで指定したオプションはファイルより優先され、
+動いている `textlayer watch` は再起動しなくてもファイルの変更を読み込みます。
+
+| キー | 意味 |
+|---|---|
+| `watchFolder` | フォルダを指定せずに起動した `watch` が見張るフォルダ |
+| `settleSeconds` | `watch` が読む前に、ファイルが変わらずにいるべき秒数 |
+| `keepBackups` | 書き換える前に元のファイルの写しを残す |
+| `backupFolder` | 写しと `log.tsv` を置く場所 |
+| `jobs` | 同時に読むページ数。`0` は CPU のコア数 - 2 |
+
+使えない値は既定値のままにして標準エラーに知らせます。コマンドが知らないキーはファイルに残します。
+
 `apply` は書き換える前に、各ファイルを退避先に（ホームフォルダからのパスのまま）写し、
 そこの `log.tsv` に記録します。`restore` は、そのあと誰も書き換えていなければファイルを元の長さに
 切り詰め、書き換えられていれば退避した写しで上書きします。
 
 ### launchd でフォルダを見張る
 
-英語版の plist を `~/Library/LaunchAgents/textlayer.watch.plist` に保存し（パスは書き換える）、
+設定でフォルダを決め（または plist の `watch` のあとにフォルダを足し）、英語版の plist を
+`~/Library/LaunchAgents/textlayer.watch.plist` に保存し（パスは書き換える）、
 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/textlayer.watch.plist` を実行します。
 
 保護されたフォルダ（iCloud Drive・書類・デスクトップ）は、先にコマンドに読む許可を出す必要が
