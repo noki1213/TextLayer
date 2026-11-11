@@ -225,6 +225,10 @@ struct SettingsView: View {
                     }
                 }
                 .contentShape(Rectangle())
+                .onHover { inside in
+                    guard inside, model.section != section else { return }
+                    withAnimation(Motion.select) { model.section = section }
+                }
                 .onTapGesture {
                     NSApp.keyWindow?.makeFirstResponder(nil)
                     withAnimation(Motion.select) { model.section = section }
