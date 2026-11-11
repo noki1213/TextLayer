@@ -86,6 +86,11 @@ final class GlassWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
+    // AppKit asks the window for these two values when it decides how to draw glass; the same
+    // answer in every focus state keeps the glass dense when another app is in front.
+    @objc func hasKeyAppearance() -> Bool { true }
+    @objc func hasMainAppearance() -> Bool { true }
+
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown {
             let point = event.locationInWindow
