@@ -5,17 +5,20 @@ import UniformTypeIdentifiers
 
 typealias TextLayerSettings = PDFTextLayer.Settings
 
-/// `textlayer settings`: one glass panel with the sections on the left and their settings on the
-/// right. Every change is written to the settings file at once; Esc closes it.
+/// `textlayer settings`: an ordinary window with the sections on the left and their settings on the
+/// right. Every change is written to the settings file at once; Esc or the close button quits.
 enum SettingsWindow {
     static func run(file: SettingsFile) -> Never {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         app.mainMenu = editMenu()
         let model = SettingsModel(file: file)
-        let window = GlassWindow(size: NSSize(width: 640, height: 420))
+        let window = makeWindow(size: NSSize(width: 640, height: 420))
         window.contentView = NSHostingView(rootView: SettingsView(model: model))
-        window.placeOnMouseScreen()
+        placeOnMouseScreen(window)
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { _ in
+            app.terminate(nil)
+        }
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let editing = window.firstResponder is NSTextView
@@ -44,6 +47,28 @@ enum SettingsWindow {
         exit(0)
     }
 
+    /// A titled window tinted 70% black with no blur, so it reads the same in every focus state and
+    /// window managers treat it like any other window.
+    private static func makeWindow(size: NSSize) -> NSWindow {
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                              styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        window.title = "TextLayer Settings"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isOpaque = false
+        window.backgroundColor = NSColor(calibratedWhite: 0, alpha: 0.7)
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.isReleasedWhenClosed = false
+        return window
+    }
+
+    private static func placeOnMouseScreen(_ window: NSWindow) {
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+        guard let visible = screen?.visibleFrame else { return }
+        window.setFrameOrigin(NSPoint(x: visible.midX - window.frame.width / 2, y: visible.midY - window.frame.height / 2))
+    }
+
     /// Hidden from view in an app without a menu bar, but it gives the text fields copy, paste
     /// and undo, and ⌘W and ⌘Q close the window
     private static func editMenu() -> NSMenu {
@@ -66,48 +91,6 @@ enum SettingsWindow {
         editItem.submenu = edit
         main.addItem(editItem)
         return main
-    }
-}
-
-/// A borderless, transparent window exactly the size of the panel drawn in it. It is moved by its
-/// outer 10pt only, so dragging inside stays free for text selection and drops.
-final class GlassWindow: NSWindow {
-    private static let dragEdge: CGFloat = 10
-
-    init(size: NSSize) {
-        super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
-        isOpaque = false
-        backgroundColor = .clear
-        hasShadow = true
-        appearance = NSAppearance(named: .darkAqua)
-        isReleasedWhenClosed = false
-    }
-
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-
-    // AppKit asks the window for these two values when it decides how to draw glass; the same
-    // answer in every focus state keeps the glass dense when another app is in front.
-    @objc func hasKeyAppearance() -> Bool { true }
-    @objc func hasMainAppearance() -> Bool { true }
-
-    override func sendEvent(_ event: NSEvent) {
-        if event.type == .leftMouseDown {
-            let point = event.locationInWindow
-            let inner = NSRect(origin: .zero, size: frame.size).insetBy(dx: Self.dragEdge, dy: Self.dragEdge)
-            if !inner.contains(point) {
-                performDrag(with: event)
-                return
-            }
-        }
-        super.sendEvent(event)
-    }
-
-    func placeOnMouseScreen() {
-        let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
-        guard let visible = screen?.visibleFrame else { return }
-        setFrameOrigin(NSPoint(x: visible.midX - frame.width / 2, y: visible.midY - frame.height / 2))
     }
 }
 
@@ -191,52 +174,13 @@ enum Palette {
 }
 
 enum Motion {
-    static let appear = Animation.spring(response: 0.30, dampingFraction: 1)
     static let select = Animation.spring(response: 0.28, dampingFraction: 1)
-}
-
-/// Frosted glass for systems before Liquid Glass
-struct VisualEffectView: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
-}
-
-/// Liquid Glass tinted 60% black, so what is behind the window can't wash out the text
-struct GlassBackground: View {
-    let cornerRadius: CGFloat
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        ZStack {
-            if #available(macOS 26.0, *) {
-                GlassEffectContainer {
-                    shape.fill(Color.clear).glassEffect(.regular.tint(Palette.black.opacity(0.60)), in: shape)
-                }
-            } else {
-                ZStack {
-                    VisualEffectView()
-                    Palette.black.opacity(0.60)
-                }
-                .clipShape(shape)
-            }
-            shape.stroke(Color.white.opacity(0.12), lineWidth: 1)
-        }
-    }
 }
 
 // MARK: - Views
 
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var progress: Double = 0
     @Namespace private var highlight
 
     var body: some View {
@@ -253,14 +197,6 @@ struct SettingsView: View {
             .padding(24)
         }
         .frame(width: 640, height: 420)
-        .background(GlassBackground(cornerRadius: 22))
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .scaleEffect(reduceMotion ? 1 : 0.94 + 0.06 * progress)
-        .blur(radius: reduceMotion ? 0 : 12 * (1 - progress))
-        .opacity(progress)
-        .onAppear {
-            withAnimation(reduceMotion ? .easeOut(duration: 0.1) : Motion.appear) { progress = 1 }
-        }
     }
 
     private var sidebar: some View {
