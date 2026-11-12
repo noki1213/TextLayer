@@ -47,7 +47,7 @@ enum SettingsWindow {
         exit(0)
     }
 
-    /// A titled window tinted 70% black with no blur, so it reads the same in every focus state and
+    /// A titled window on solid black, so it reads the same in every focus state and over any desktop, and
     /// window managers treat it like any other window.
     private static func makeWindow(size: NSSize) -> NSWindow {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
@@ -55,8 +55,8 @@ enum SettingsWindow {
         window.title = "TextLayer Settings"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
-        window.isOpaque = false
-        window.backgroundColor = NSColor(calibratedWhite: 0, alpha: 0.7)
+        window.isOpaque = true
+        window.backgroundColor = .black
         window.appearance = NSAppearance(named: .darkAqua)
         window.isReleasedWhenClosed = false
         return window
