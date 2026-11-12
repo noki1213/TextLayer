@@ -186,7 +186,7 @@ struct SettingsView: View {
     var body: some View {
         HStack(spacing: 0) {
             sidebar
-            Rectangle().fill(Color.white.opacity(0.12)).frame(width: 1).padding(.vertical, 18)
+            Rectangle().fill(Color.white.opacity(0.20)).frame(width: 1).padding(.vertical, 18)
             VStack(alignment: .leading, spacing: 0) {
                 content
                     .id(model.section)
@@ -316,7 +316,7 @@ struct FolderField: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(focused || dropping ? Palette.green : Color.white.opacity(0.12), lineWidth: 1)
+                    .stroke(focused || dropping ? Palette.green : Color.white.opacity(0.20), lineWidth: 1)
             )
             .onAppear { text = value }
             .onChange(of: value) { newValue in if !focused { text = newValue } }
