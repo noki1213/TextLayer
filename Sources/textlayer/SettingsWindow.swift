@@ -218,11 +218,16 @@ struct SettingsView: View {
                 .padding(.horizontal, 12)
                 .frame(height: 34)
                 .background {
-                    if selected {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(Palette.green.opacity(0.30))
-                            .matchedGeometryEffect(id: "section", in: highlight)
+                    // The sliding highlight passes over other rows, so it takes no pointer:
+                    // otherwise it catches their hover and swings back and forth
+                    Group {
+                        if selected {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(Palette.green.opacity(0.30))
+                                .matchedGeometryEffect(id: "section", in: highlight)
+                        }
                     }
+                    .allowsHitTesting(false)
                 }
                 .contentShape(Rectangle())
                 .onHover { inside in
