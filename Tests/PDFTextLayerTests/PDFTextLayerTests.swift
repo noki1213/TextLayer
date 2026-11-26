@@ -141,8 +141,27 @@ final class BackupPrunerTests: XCTestCase {
         XCTAssertFalse(fileManager.fileExists(atPath: oldCopy.deletingLastPathComponent().path))
         XCTAssertTrue(fileManager.fileExists(atPath: newCopy.path))
         XCTAssertTrue(fileManager.fileExists(atPath: outside.path))
-        let left = try String(contentsOf: backups.appendingPathComponent("log.tsv"), encoding: .utf8)
-        XCTAssertEqual(left, [line("2026-11-20T08:00:00Z", newCopy), line("2026-10-27T08:00:00Z", outside)].joined(separator: "\n") + "\n")
+        let logURL = backups.appendingPathComponent("log.tsv")
+        let left = try String(contentsOf: logURL, encoding: .utf8)
+        func cleared(_ made: String) -> String {
+            [made, sources.appendingPathComponent("x.pdf").path, "4", "digest", "", "1/1 pages"].joined(separator: "\t")
+        }
+        XCTAssertEqual(left, [
+            cleared("2026-10-27T08:00:00Z"),
+            line("2026-11-20T08:00:00Z", newCopy),
+            line("2026-10-27T08:00:00Z", outside),
+            cleared("2026-10-27T08:00:00Z"),
+        ].joined(separator: "\n") + "\n")
+
+        // A second run finds nothing left to do
+        XCTAssertEqual(BackupPruner.prune(in: backups, keepDays: 30, now: now).deleted, 0)
+        XCTAssertEqual(try String(contentsOf: logURL, encoding: .utf8), left)
+
+        // A file changed since apply, with its copy gone, is left alone
+        let changed = sources.appendingPathComponent("x.pdf")
+        try Data("%PDF changed".utf8).write(to: changed)
+        XCTAssertThrowsError(try Restorer.restore(changed, backupDirectory: backups))
+        XCTAssertEqual(try Data(contentsOf: changed), Data("%PDF changed".utf8))
 
         XCTAssertEqual(BackupPruner.prune(in: backups, keepDays: 0, now: now.addingTimeInterval(1e8)).deleted, 0)
         XCTAssertTrue(fileManager.fileExists(atPath: newCopy.path))

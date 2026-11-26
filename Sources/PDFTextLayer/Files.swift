@@ -61,7 +61,7 @@ public enum Restorer {
             return "cut back to the original \(originalSize) bytes"
         }
         guard !backup.isEmpty, FileManager.default.fileExists(atPath: backup) else {
-            throw PDFParseError("file was changed since and no backup copy is kept")
+            throw PDFParseError("file was changed since apply and no backup copy is left; the file is left as it is")
         }
         let original = try Data(contentsOf: URL(fileURLWithPath: backup))
         let handle = try FileHandle(forWritingTo: url)

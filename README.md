@@ -101,8 +101,9 @@ does not know are left in the file.
 `apply` copies each file into the backup folder (mirroring its path under your home folder)
 before changing it and records it in `log.tsv` there. `restore` cuts the file back to its
 original length when nothing has changed it since, and otherwise copies the backup over it.
-Copies older than `keepBackupDays`, counted from when they were made, are deleted with their lines
-in `log.tsv` and any folders they leave empty: after each `apply`, and while `watch` runs (at
+Copies older than `keepBackupDays`, counted from when they were made, are deleted with any folders
+they leave empty; their lines stay in `log.tsv`, so `restore` can still cut an untouched file back,
+while a file changed since is left alone. Deleting happens after each `apply`, and while `watch` runs (at
 start, after each batch and hourly). Only files inside the backup folder are deleted.
 
 ### Watching a folder with launchd
@@ -286,7 +287,8 @@ nice -n 19 textlayer apply ~/Documents/Papers
 `apply` は書き換える前に、各ファイルを退避先に（ホームフォルダからのパスのまま）写し、
 そこの `log.tsv` に記録します。`restore` は、そのあと誰も書き換えていなければファイルを元の長さに
 切り詰め、書き換えられていれば退避した写しで上書きします。
-写してから `keepBackupDays` 日を過ぎた写しは、`log.tsv` のその行と空になったフォルダとともに消します。
+写してから `keepBackupDays` 日を過ぎた写しは、空になったフォルダとともに消します。`log.tsv` の行は残すので、
+誰も書き換えていないファイルは `restore` で元の長さに戻せます（書き換えられたファイルには触れません）。
 消すのは `apply` のあとと、`watch` の動いている間（起動時・一回分の処理のあと・1時間ごと）です。
 消すのは退避先の中のファイルだけです。
 
