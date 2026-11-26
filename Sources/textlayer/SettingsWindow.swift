@@ -436,6 +436,18 @@ struct BackupsSection: View {
                 }
             }
             .opacity(model.settings.keepBackups ? 1 : 0.45)
+            SettingRow(
+                label: "Delete copies after",
+                note: "Copies older than this are deleted, with their lines in the log, while textlayer watch runs and after each apply."
+            ) {
+                NumberStepper(
+                    value: model.settings.keepBackupDays,
+                    range: 0...365,
+                    step: 1,
+                    label: { $0 == 0 ? "Never" : $0 == 1 ? "1 day" : "\($0) days" },
+                    change: { model.set(\.keepBackupDays, $0, key: .keepBackupDays, json: $0) }
+                )
+            }
         }
     }
 }

@@ -83,6 +83,7 @@ public final class FolderWatcher {
     private var working = false
     private var stream: FSEventStreamRef?
     private var timer: DispatchSourceTimer?
+    private var lastPrune = Date.distantPast
 
     public init(folder: URL, settle: TimeInterval, processor: Processor) {
         self.folder = folder.standardizedFileURL
@@ -140,7 +141,21 @@ public final class FolderWatcher {
         stateQueue.async { [self] in
             self.settle = settle
             self.processor = processor
+            lastPrune = Date()
+            prune(with: processor)
         }
+    }
+
+    /// Deletes old backup copies on the work queue, so it never runs alongside a batch
+    private func prune(with processor: Processor) {
+        workQueue.async { [self] in pruneNow(with: processor) }
+    }
+
+    private func pruneNow(with processor: Processor) {
+        let result = processor.pruneBackups()
+        guard result.deleted > 0 else { return }
+        let size = ByteCountFormatter.string(fromByteCount: result.bytes, countStyle: .file)
+        log("deleted \(result.deleted) old backup copies (\(size))")
     }
 
     /// Stops watching. A batch being read still finishes.
@@ -173,6 +188,10 @@ public final class FolderWatcher {
     private func tick() {
         guard !working else { return }
         let now = Date()
+        if now.timeIntervalSince(lastPrune) >= 3600 {
+            lastPrune = now
+            prune(with: processor)
+        }
         let ready = pending.filter { path, noticed in
             guard now.timeIntervalSince(noticed) >= settle else { return false }
             let modified = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate]) as? Date
@@ -191,6 +210,7 @@ public final class FolderWatcher {
                 case .failed(let reason): log("fail\t\(path)\t\(reason)")
                 }
             }
+            pruneNow(with: processor)
             stateQueue.async { self.working = false }
         }
     }

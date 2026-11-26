@@ -81,6 +81,7 @@ file, and a running `textlayer watch` picks up changes to it without a restart.
   "settleSeconds": 30,
   "keepBackups": true,
   "backupFolder": "~/Library/Application Support/TextLayer/Originals",
+  "keepBackupDays": 30,
   "jobs": 0
 }
 ```
@@ -91,6 +92,7 @@ file, and a running `textlayer watch` picks up changes to it without a restart.
 | `settleSeconds` | How long a file has to stay unchanged before `watch` reads it |
 | `keepBackups` | Keep a copy of each original before changing it |
 | `backupFolder` | Where the copies and `log.tsv` go |
+| `keepBackupDays` | Days a copy is kept before it is deleted; `0` keeps copies forever |
 | `jobs` | Pages read at once; `0` is CPU cores - 2 |
 
 A value that can't be used keeps its default and is reported on standard error; keys the command
@@ -99,6 +101,9 @@ does not know are left in the file.
 `apply` copies each file into the backup folder (mirroring its path under your home folder)
 before changing it and records it in `log.tsv` there. `restore` cuts the file back to its
 original length when nothing has changed it since, and otherwise copies the backup over it.
+Copies older than `keepBackupDays`, counted from when they were made, are deleted with their lines
+in `log.tsv` and any folders they leave empty: after each `apply`, and while `watch` runs (at
+start, after each batch and hourly). Only files inside the backup folder are deleted.
 
 ### Watching a folder with launchd
 
@@ -273,6 +278,7 @@ nice -n 19 textlayer apply ~/Documents/Papers
 | `settleSeconds` | `watch` が読む前に、ファイルが変わらずにいるべき秒数 |
 | `keepBackups` | 書き換える前に元のファイルの写しを残す |
 | `backupFolder` | 写しと `log.tsv` を置く場所 |
+| `keepBackupDays` | 写しを残す日数。過ぎたら消す。`0` は消さない |
 | `jobs` | 同時に読むページ数。`0` は CPU のコア数 - 2 |
 
 使えない値は既定値のままにして標準エラーに知らせます。コマンドが知らないキーはファイルに残します。
@@ -280,6 +286,9 @@ nice -n 19 textlayer apply ~/Documents/Papers
 `apply` は書き換える前に、各ファイルを退避先に（ホームフォルダからのパスのまま）写し、
 そこの `log.tsv` に記録します。`restore` は、そのあと誰も書き換えていなければファイルを元の長さに
 切り詰め、書き換えられていれば退避した写しで上書きします。
+写してから `keepBackupDays` 日を過ぎた写しは、`log.tsv` のその行と空になったフォルダとともに消します。
+消すのは `apply` のあとと、`watch` の動いている間（起動時・一回分の処理のあと・1時間ごと）です。
+消すのは退避先の中のファイルだけです。
 
 ### launchd でフォルダを見張る
 

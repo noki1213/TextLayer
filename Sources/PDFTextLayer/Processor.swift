@@ -6,6 +6,10 @@ import PDFKit
 public struct ProcessOptions {
     /// Copy of each file as it was before the update; nil keeps none
     public var backupDirectory: URL?
+    /// Backup folder whose old copies are deleted, set even when no new copies are kept
+    public var pruneDirectory: URL?
+    /// Days a copy is kept there; 0 keeps copies forever
+    public var keepBackupDays = 30
     /// Write the updated file here (under its path relative to the folder it was found in)
     /// instead of updating it in place
     public var outputDirectory: URL?
@@ -286,6 +290,15 @@ public final class Processor {
         group.wait()
         if let firstError { throw firstError }
         return results
+    }
+
+    /// Deletes copies older than the kept number of days. Does nothing without a folder or on a dry run.
+    @discardableResult
+    public func pruneBackups() -> BackupPruner.Result {
+        guard let directory = options.pruneDirectory, !options.dryRun else { return BackupPruner.Result() }
+        logLock.lock()
+        defer { logLock.unlock() }
+        return BackupPruner.prune(in: directory, keepDays: options.keepBackupDays)
     }
 
     // MARK: Checking, backups and log

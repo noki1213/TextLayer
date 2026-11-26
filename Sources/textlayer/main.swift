@@ -15,6 +15,8 @@ let usage = """
       --backup-dir <dir>   Where copies of the originals go
                            (default: ~/Library/Application Support/TextLayer/Originals)
       --no-backup          Keep no copies
+                           Copies older than keepBackupDays (default: 30) are deleted
+                           after apply and while watch runs
       --output-dir <dir>   Write updated copies here and leave the originals alone (apply only)
       --jobs <n>           Pages read at once (default: CPU cores - 2)
       --settle <seconds>   How long a file has to stay unchanged before watch reads it (default: 30)
@@ -47,6 +49,8 @@ struct Overrides {
     func options(from settings: Settings) -> ProcessOptions {
         var options = ProcessOptions()
         options.backupDirectory = backupDirectory ?? (settings.keepBackups ? settings.backupFolderURL : nil)
+        options.pruneDirectory = (backupDirectory ?? nil) ?? settings.backupFolderURL
+        options.keepBackupDays = settings.keepBackupDays
         options.outputDirectory = outputDirectory
         options.jobs = jobs ?? settings.effectiveJobs
         return options
@@ -119,6 +123,7 @@ case "check", "apply":
         }
     }
     fileQueue.waitUntilAllOperationsAreFinished()
+    processor.pruneBackups()
     exit(failures == 0 ? 0 : 1)
 
 case "restore":

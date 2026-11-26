@@ -105,3 +105,46 @@ final class InvisibleTextRemovalTests: XCTestCase {
         XCTAssertFalse(bare.contains("Tj"))
     }
 }
+
+final class BackupPrunerTests: XCTestCase {
+    func testOldCopiesGoAndEverythingElseStays() throws {
+        let fileManager = FileManager.default
+        let base = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fileManager.removeItem(at: base) }
+        let backups = base.appendingPathComponent("Originals")
+        let sources = base.appendingPathComponent("Papers")
+        try fileManager.createDirectory(at: backups.appendingPathComponent("Papers/old"), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: backups.appendingPathComponent("Papers/new"), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sources, withIntermediateDirectories: true)
+        let oldCopy = backups.appendingPathComponent("Papers/old/a.pdf")
+        let newCopy = backups.appendingPathComponent("Papers/new/b.pdf")
+        let outside = sources.appendingPathComponent("c.pdf")
+        for url in [oldCopy, newCopy, outside] { try Data("%PDF".utf8).write(to: url) }
+        // Copies keep the original's modification date, which must not decide their age
+        try fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: oldCopy.path)
+
+        let now = ISO8601DateFormatter().date(from: "2026-12-01T00:00:00Z")!
+        func line(_ made: String, _ backup: URL) -> String {
+            [made, sources.appendingPathComponent("x.pdf").path, "4", "digest", backup.path, "1/1 pages"].joined(separator: "\t")
+        }
+        let log = [
+            line("2026-10-27T08:00:00Z", oldCopy),
+            line("2026-11-20T08:00:00Z", newCopy),
+            line("2026-10-27T08:00:00Z", outside),
+            line("2026-10-27T08:00:00Z", backups.appendingPathComponent("Papers/gone.pdf")),
+        ].joined(separator: "\n") + "\n"
+        try Data(log.utf8).write(to: backups.appendingPathComponent("log.tsv"))
+
+        let result = BackupPruner.prune(in: backups, keepDays: 30, now: now)
+        XCTAssertEqual(result.deleted, 1)
+        XCTAssertFalse(fileManager.fileExists(atPath: oldCopy.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: oldCopy.deletingLastPathComponent().path))
+        XCTAssertTrue(fileManager.fileExists(atPath: newCopy.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: outside.path))
+        let left = try String(contentsOf: backups.appendingPathComponent("log.tsv"), encoding: .utf8)
+        XCTAssertEqual(left, [line("2026-11-20T08:00:00Z", newCopy), line("2026-10-27T08:00:00Z", outside)].joined(separator: "\n") + "\n")
+
+        XCTAssertEqual(BackupPruner.prune(in: backups, keepDays: 0, now: now.addingTimeInterval(1e8)).deleted, 0)
+        XCTAssertTrue(fileManager.fileExists(atPath: newCopy.path))
+    }
+}

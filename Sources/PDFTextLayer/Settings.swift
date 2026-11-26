@@ -8,13 +8,15 @@ public struct Settings: Equatable {
     public var settleSeconds: Double = 30
     public var keepBackups = true
     public var backupFolder = "~/Library/Application Support/TextLayer/Originals"
+    /// Days a copy is kept before it is deleted; 0 keeps copies forever
+    public var keepBackupDays = 30
     /// Pages read at once; 0 picks CPU cores - 2
     public var jobs = 0
 
     public init() {}
 
     public enum Key: String, CaseIterable {
-        case watchFolder, settleSeconds, keepBackups, backupFolder, jobs
+        case watchFolder, settleSeconds, keepBackups, backupFolder, keepBackupDays, jobs
     }
 
     public static var automaticJobs: Int { max(1, ProcessInfo.processInfo.activeProcessorCount - 2) }
@@ -48,6 +50,11 @@ public struct Settings: Equatable {
         }
         if let value = object[Key.backupFolder.rawValue] {
             if let string = value as? String { backupFolder = string } else { problems.append(Key.backupFolder.rawValue) }
+        }
+        if let value = object[Key.keepBackupDays.rawValue] {
+            if let number = Self.number(value), number.intValue >= 0, Double(number.intValue) == number.doubleValue {
+                keepBackupDays = number.intValue
+            } else { problems.append(Key.keepBackupDays.rawValue) }
         }
         if let value = object[Key.jobs.rawValue] {
             if let number = Self.number(value), number.intValue >= 0, Double(number.intValue) == number.doubleValue {
